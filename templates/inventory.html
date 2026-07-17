@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Inventory — LifeRoute{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Inventory</h1>
+    <p class="sub-muted">{{ me.name }} · live stock levels that drive real network matching</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn-ghost">← Back to dashboard</a>
+  <a href="{{ url_for('export_inventory_csv') }}" class="btn-ghost">⬇ Export CSV</a>
+</div>
+
+<div class="inv-hero-stats">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--blue-soft); color:var(--blue);">▤</div>
+    <div class="stat-val">{{ total_types }}</div>
+    <div class="stat-label">Asset types tracked</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--green-soft); color:var(--green);">◆</div>
+    <div class="stat-val">{{ total_units }}</div>
+    <div class="stat-label">Total units on hand</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--orange-soft); color:var(--orange);">▲</div>
+    <div class="stat-val">{{ low_count }}</div>
+    <div class="stat-label">Low stock (≤2 units)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:var(--red-soft); color:var(--red);">!</div>
+    <div class="stat-val">{{ zero_count }}</div>
+    <div class="stat-label">Zero stock</div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Your Inventory <span class="dim">live · drives real matching</span></div>
+  <input type="text" class="inv-search" id="invSearch" placeholder="Filter assets… (e.g. plasma, ventilator)">
+
+  {% for category, items in grouped.items() %}
+  <details class="category-block" open data-cat-block>
+    <summary>
+      <span><span class="chev">▶</span> {{ category }}</span>
+      <span class="count">{{ items|length }} assets</span>
+    </summary>
+    <div class="cat-body">
+    {% for item in items %}
+    <div class="inv-row" data-name="{{ item.asset_type|lower }}">
+      <div class="inv-name">{{ item.asset_type }}</div>
+      <div class="inv-controls">
+        <span class="qty-badge {{ 'zero' if item.quantity == 0 else ('low' if item.quantity <= 2 else 'ok') }}" id="badge-{{ loop.index0 }}-{{ item.id }}">{{ item.quantity }}</span>
+        <div class="stepper">
+          <button type="button" onclick="stepQty('{{ item.asset_type }}', -1, this)">−</button>
+          <input type="number" value="{{ item.quantity }}" id="qty-{{ item.id }}" data-asset="{{ item.asset_type }}" data-id="{{ item.id }}" onchange="saveQty(this)">
+          <button type="button" onclick="stepQty('{{ item.asset_type }}', 1, this)">＋</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+
+  <form class="add-custom" action="{{ url_for('inventory_add_custom') }}" method="post">
+    <input type="text" name="name" placeholder="Custom asset name (e.g. Pediatric Crash Cart)" required>
+    <input type="number" name="quantity" placeholder="Qty" min="0" value="0">
+    <button type="submit" class="btn-primary" style="margin-top:0;">Add</button>
+  </form>
+</div>
+
+<script>
+const catBlocks = document.querySelectorAll('[data-cat-block]');
+catBlocks.forEach((b, i)=>{ if(i>0) b.removeAttribute('open'); });
+
+const search = document.getElementById('invSearch');
+search.addEventListener('input', ()=>{
+  const q = search.value.trim().toLowerCase();
+  catBlocks.forEach(block=>{
+    let anyVisible = false;
+    block.querySelectorAll('.inv-row').forEach(row=>{
+      const match = !q || row.dataset.name.includes(q);
+      row.style.display = match ? '' : 'none';
+      if(match) anyVisible = true;
+    });
+    block.style.display = anyVisible ? '' : 'none';
+    if(q && anyVisible) block.setAttribute('open', '');
+  });
+});
+
+function refreshBadge(input){
+  const val = parseInt(input.value)||0;
+  const badge = input.closest('.inv-controls').querySelector('.qty-badge');
+  badge.textContent = val;
+  badge.classList.remove('zero','low','ok');
+  badge.classList.add(val===0 ? 'zero' : (val<=2 ? 'low' : 'ok'));
+  badge.style.animation = 'none';
+  requestAnimationFrame(()=>{ badge.style.animation = 'pop .3s ease'; });
+}
+
+function stepQty(asset, delta, btn){
+  const input = btn.closest('.inv-controls').querySelector('input[type=number]');
+  input.value = Math.max(0, (parseInt(input.value)||0) + delta);
+  saveQty(input);
+}
+
+let saveTimers = {};
+function saveQty(input){
+  refreshBadge(input);
+  clearTimeout(saveTimers[input.dataset.id]);
+  saveTimers[input.dataset.id] = setTimeout(()=>{
+    fetch("{{ url_for('inventory_update') }}?st=" + encodeURIComponent(window.LR_TOKEN), {
+      method:"POST",
+      headers:{"Content-Type":"application/x-www-form-urlencoded"},
+      body:"asset_type="+encodeURIComponent(input.dataset.asset)+"&quantity="+encodeURIComponent(input.value)
+    });
+  }, 350);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Doctors — LifeRoute{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>On-Call Directory</h1>
+    <p class="sub-muted">Specialist physicians available for urgent consultation across the network.</p>
+  </div>
+</div>
+
+<div class="doctor-grid">
+  {% for doc in doctors %}
+  <div class="doctor-card" style="animation-delay:{{ loop.index0 * 0.04 }}s;">
+    <div class="doctor-avatar">{{ doc.name.split(' ')[1][0] }}</div>
+    <div class="doctor-info">
+      <div class="doctor-name">{{ doc.name }}</div>
+      <div class="doctor-qual">{{ doc.qualification }}</div>
+      <div class="doctor-phone">{{ doc.phone }}</div>
+    </div>
+    <button class="ping-btn" onclick="pingDoctor(this, '{{ doc.name }}')">Ping</button>
+  </div>
+  {% endfor %}
+</div>
+
+<script>
+function pingDoctor(btn, name){
+  btn.textContent = 'Pinged ✓';
+  btn.classList.add('pinged');
+  btn.disabled = true;
+  setTimeout(()=>{
+    btn.textContent = 'Ping';
+    btn.classList.remove('pinged');
+    btn.disabled = false;
+  }, 2500);
+}
+</script>
+{% endblock %}

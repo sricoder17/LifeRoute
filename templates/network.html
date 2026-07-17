@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}Network Map — LifeRoute{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script>
+// Some hospital/corporate networks block one CDN but not another, and a blocked
+// script used to fail silently, leaving the map area permanently blank with no
+// clue why. Try cdnjs first, fall back to unpkg, and surface a visible error
+// (instead of nothing) if neither can be reached.
+window.LR_LEAFLET_FAILED = false;
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"
+        onerror="var s=document.createElement('script'); s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; s.onerror=function(){window.LR_LEAFLET_FAILED=true;}; document.head.appendChild(s);"></script>
+
+<div class="page-head">
+  <div>
+    <h1>Network Map</h1>
+    <p class="sub-muted">Every registered hospital and every active shipment — real road routes, live traffic, real ETA math.</p>
+  </div>
+</div>
+
+<div class="speed-panel">
+  <span class="sp-label">⏩ Simulation speed</span>
+  <input type="range" id="speedSlider" min="1" max="120" value="1" step="1">
+  <span class="speed-val" id="speedVal">1×</span>
+  <span class="dim" style="max-width:280px;">Scales how fast the live map plays back real ETAs — handy for demos, doesn't touch the underlying timestamps.</span>
+</div>
+
+<div class="panel" style="padding:0; overflow:hidden;">
+  <div class="hud-shell">
+    <div class="hud-topbar">
+      <div class="hud-status"><span class="hs-dot"></span> LIFEROUTE DISPATCH · ONLINE</div>
+      <div class="hud-readout">
+        <span>ACTIVE SHIPMENTS <b id="activeCount">0</b></span>
+        <span>NODES <b id="nodeCount">0</b></span>
+        <span>SYS CLOCK <b id="hudClock">--:--:--</b></span>
+      </div>
+    </div>
+    <div class="map-container" style="border:none; border-radius:0; box-shadow:none;">
+      <div class="radar-sweep"></div>
+      <div class="hud-corner tl"></div>
+      <div class="hud-corner tr"></div>
+      <div class="hud-corner bl"></div>
+      <div class="hud-corner br"></div>
+      <div id="netmap" style="height:560px; width:100%;"></div>
+      <div id="netmapError" style="display:none; position:absolute; inset:0; z-index:10; align-items:center; justify-content:center; flex-direction:column; gap:10px; background:#050810; color:#7ea0d8; font-family:'SF Mono',monospace; font-size:12.5px; text-align:center; padding:20px;">
+        <div style="font-size:22px;">🗺️⚠️</div>
+        <div>Couldn't load the map library — check the network connection and refresh.</div>
+        <button type="button" class="btn-ghost" onclick="location.reload()">Retry</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-title">Shipments In Motion <span class="dim">real road route · live traffic · ETA</span></div>
+  <div class="ship-list" id="shipList">
+    <p class="empty-note" id="shipEmpty">No shipments currently moving through the network.</p>
+  </div>
+</div>
+
+<script>
+function lrInitNetworkMap(){
+
+if(typeof L === 'undefined'){
+  document.getElementById('netmapError').style.display = 'flex';
+  return;
+}
+
+const map = L.map('netmap', {zoomControl:true, attributionControl:true});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+}).addTo(map);
+map.setView([28.6139, 77.2090], 11); // sane default so the map never renders blank before data arrives
+
+// keep the map correctly sized even if the container's real width/height
+// isn't final at the moment L.map() runs (e.g. inside a flex/grid layout,
+// or a font/webfont reflow after paint) — without this the tiles can end
+// up stuck at a stale 0x0 size and the map area just looks empty.
+if(window.ResizeObserver){
+  new ResizeObserver(()=>{ map.invalidateSize(); }).observe(document.getElementById('netmap'));
+}
+window.addEventListener('resize', ()=>map.invalidateSize());
+window.addEventListener('load', ()=>setTimeout(()=>map.invalidateSize(), 200));
+
+let hospitalMarkers = {};
+let shipmentLines = {};
+let shipmentGlowLines = {};
+let shipmentMarkers = {};
+let initialized = false;
+let lastActive = [];
+let speedMult = 1;
+
+const speedSlider = document.getElementById('speedSlider');
+const speedVal = document.getElementById('speedVal');
+speedSlider.addEventListener('input', ()=>{
+  speedMult = parseInt(speedSlider.value) || 1;
+  speedVal.textContent = speedMult + '×';
+});
+
+function fmtClock(d){
+  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+setInterval(()=>{ document.getElementById('hudClock').textContent = fmtClock(new Date()); }, 1000);
+
+const trafficColor = {Light:'#4ade80', Moderate:'#ffb03d', Heavy:'#ff6259'};
+
+// walk a multi-point [[lat,lon],...] path and return the point at `frac` (0..1) of its total length
+function pointAlongPath(points, frac){
+  if(points.length < 2) return points[0] || [0,0];
+  const segLens = [];
+  let total = 0;
+  for(let i=0;i<points.length-1;i++){
+    const d = L.latLng(points[i]).distanceTo(L.latLng(points[i+1]));
+    segLens.push(d);
+    total += d;
+  }
+  let target = total * Math.min(1, Math.max(0, frac));
+  for(let i=0;i<segLens.length;i++){
+    if(target <= segLens[i] || i===segLens.length-1){
+      const segFrac = segLens[i] ? target/segLens[i] : 0;
+      const a = points[i], b = points[i+1];
+      return [a[0] + (b[0]-a[0])*segFrac, a[1] + (b[1]-a[1])*segFrac];
+    }
+    target -= segLens[i];
+  }
+  return points[points.length-1];
+}
+
+function hospitalIcon(){
+  return L.divIcon({className:'', html:`
+    <div style="position:relative; width:16px; height:16px;">
+      <div style="position:absolute; inset:0; border-radius:50%; background:#00c2b2; border:3px solid #fff; box-shadow:0 0 0 4px rgba(0,194,178,.22), 0 2px 8px rgba(0,0,0,.5); z-index:2;"></div>
+      <div style="position:absolute; inset:-6px; border-radius:50%; border:1.5px solid #00c2b2; opacity:.6; animation:blipPing 2.4s ease-out infinite;"></div>
+    </div>`, iconSize:[16,16], iconAnchor:[8,8]});
+}
+
+function vehicleIcon(color){
+  return L.divIcon({className:'', html:`
+    <div style="position:relative; width:30px; height:30px;">
+      <div style="position:absolute; inset:2px; border-radius:50%; border:1.5px solid ${color}; opacity:.55; animation:blipPing 1.8s ease-out infinite;"></div>
+      <div style="position:absolute; inset:5px; border-radius:50%; background:#0a0e18; border:2px solid ${color}; display:flex; align-items:center; justify-content:center; font-size:12px; color:${color}; animation:vehiclePulse 1.6s ease-in-out infinite;">🚑</div>
+    </div>`, iconSize:[30,30], iconAnchor:[15,15]});
+}
+
+async function refreshNetwork(){
+  let data;
+  try{
+    const res = await fetch("{{ url_for('api_network') }}?st=" + encodeURIComponent(window.LR_TOKEN));
+    data = await res.json();
+  }catch(e){ return; }
+  lastActive = data.active;
+
+  if(!initialized){
+    const pts = [];
+    data.hospitals.forEach(h=>{
+      const m = L.marker([h.lat, h.lon], {icon: hospitalIcon()}).addTo(map)
+        .bindPopup(`<div class="hospital-node-pop"><b>${h.name}</b><br>NODE #${h.id} · ONLINE</div>`);
+      hospitalMarkers[h.id] = m;
+      pts.push([h.lat, h.lon]);
+    });
+    if(pts.length) map.fitBounds(pts, {padding:[70,70]});
+    document.getElementById('nodeCount').textContent = data.hospitals.length;
+    initialized = true;
+    setTimeout(()=>map.invalidateSize(), 150);
+    setTimeout(()=>map.invalidateSize(), 500);
+  }
+
+  document.getElementById('activeCount').textContent = data.active.filter(a=>a.status!=='matched').length;
+
+  const seen = new Set();
+  data.active.forEach(a=>{
+    seen.add(a.id);
+    const path = a.route && a.route.length >= 2 ? a.route : [[a.m_lat,a.m_lon],[a.r_lat,a.r_lon]];
+    const color = trafficColor[a.traffic_level] || '#4fa2ff';
+
+    if(!shipmentLines[a.id]){
+      shipmentGlowLines[a.id] = L.polyline(path, {color, weight:9, opacity:.12}).addTo(map);
+      shipmentLines[a.id] = L.polyline(path, {color, weight:3.5, opacity:.9, dashArray:'1,10', lineCap:'round'}).addTo(map);
+      shipmentMarkers[a.id] = L.marker(path[0], {icon: vehicleIcon(color)}).addTo(map);
+    } else {
+      shipmentLines[a.id].setStyle({color});
+      shipmentGlowLines[a.id].setStyle({color});
+    }
+    shipmentMarkers[a.id].bindPopup(
+      `<b>${a.asset_type}</b> × ${a.quantity}<br>${a.matched_name} → ${a.requester_name}<br>` +
+      `Status: ${a.status.replace('_',' ')}<br>Traffic: ${a.traffic_level} (${a.traffic_multiplier}×)`
+    );
+  });
+
+  Object.keys(shipmentLines).forEach(id=>{
+    if(!seen.has(parseInt(id))){
+      map.removeLayer(shipmentLines[id]); map.removeLayer(shipmentGlowLines[id]); map.removeLayer(shipmentMarkers[id]);
+      delete shipmentLines[id]; delete shipmentGlowLines[id]; delete shipmentMarkers[id];
+    }
+  });
+
+  renderShipList(data.active);
+}
+
+function computeFrac(a){
+  if(a.status !== 'in_transit' || !a.transit_at || !a.eta_min) return 0;
+  const elapsedMin = ((Date.now() - new Date(a.transit_at+'Z').getTime()) / 60000) * speedMult;
+  return Math.min(1, Math.max(0, elapsedMin / a.eta_min));
+}
+
+function interpolatePositions(){
+  lastActive.forEach(a=>{
+    const marker = shipmentMarkers[a.id];
+    if(!marker) return;
+    const path = a.route && a.route.length >= 2 ? a.route : [[a.m_lat,a.m_lon],[a.r_lat,a.r_lon]];
+    const frac = computeFrac(a);
+    marker.setLatLng(pointAlongPath(path, frac));
+  });
+  renderShipList(lastActive, true);
+}
+
+function renderShipList(active, lightweight){
+  const wrap = document.getElementById('shipList');
+  const empty = document.getElementById('shipEmpty');
+  if(!active.length){
+    empty.style.display = '';
+    wrap.querySelectorAll('.ship-hud-card').forEach(c=>c.remove());
+    return;
+  }
+  empty.style.display = 'none';
+
+  active.forEach(a=>{
+    let card = document.getElementById('ship-'+a.id);
+    const frac = computeFrac(a);
+    const now = new Date();
+    let etaText = '—', locText = 'At origin', departedText = '—';
+
+    if(a.status === 'matched'){
+      locText = 'Awaiting dispatch at ' + a.matched_name;
+      etaText = 'Not yet dispatched';
+    } else if(a.status === 'dispatched'){
+      locText = 'Staged at ' + a.matched_name;
+      etaText = 'Preparing to depart';
+      departedText = a.dispatched_at ? a.dispatched_at.slice(11,19)+' UTC' : '—';
+    } else if(a.status === 'in_transit'){
+      const remainMin = Math.max(0, (a.eta_min||0) * (1-frac));
+      const mm = Math.floor(remainMin), ss = Math.floor((remainMin-mm)*60);
+      etaText = mm+'m '+ss+'s';
+      locText = Math.round(frac*100) + '% of the way to ' + a.requester_name;
+      departedText = a.transit_at ? a.transit_at.slice(11,19)+' UTC' : '—';
+    }
+
+    if(!card){
+      card = document.createElement('div');
+      card.className = 'ship-hud-card';
+      card.id = 'ship-'+a.id;
+      wrap.appendChild(card);
+    }
+    card.innerHTML = `
+      <div class="shc-top">
+        <div>
+          <div class="shc-title">${a.asset_type} × ${a.quantity}</div>
+          <div class="shc-sub">${a.matched_name} → ${a.requester_name}</div>
+        </div>
+        <span class="traffic-chip ${a.traffic_level}"><span class="tc-dot"></span>${a.traffic_level} traffic · ${a.traffic_multiplier}×</span>
+      </div>
+      <div class="shc-grid">
+        <div><div class="shc-field">Location</div><div class="shc-val" style="font-size:11.5px;">${locText}</div></div>
+        <div><div class="shc-field">Departed</div><div class="shc-val">${departedText}</div></div>
+        <div><div class="shc-field">ETA</div><div class="shc-val">${etaText}</div></div>
+        <div><div class="shc-field">Clock now</div><div class="shc-val">${fmtClock(now)}</div></div>
+        <div class="shc-progress"><div class="shc-progress-bar" style="width:${Math.round(frac*100)}%"></div></div>
+      </div>
+    `;
+  });
+
+  const activeIds = new Set(active.map(a=>'ship-'+a.id));
+  wrap.querySelectorAll('.ship-hud-card').forEach(c=>{ if(!activeIds.has(c.id)) c.remove(); });
+}
+
+refreshNetwork();
+setInterval(refreshNetwork, 4000);
+setInterval(interpolatePositions, 250);
+
+}
+
+// Leaflet loads via a blocking <script src> above, but if that tag's onerror
+// had to fall back to a second CDN, L may not be ready the instant this runs.
+// Poll briefly instead of assuming — this is what used to leave the map
+// permanently blank with nothing in the console pointing at why.
+(function waitForLeaflet(attemptsLeft){
+  if(typeof L !== 'undefined'){ lrInitNetworkMap(); return; }
+  if(window.LR_LEAFLET_FAILED || attemptsLeft <= 0){
+    document.getElementById('netmapError').style.display = 'flex';
+    return;
+  }
+  setTimeout(()=>waitForLeaflet(attemptsLeft-1), 150);
+})(40);
+</script>
+{% endblock %}

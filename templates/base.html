@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}LifeRoute{% endblock %}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>
+// ---- theme (dark/light), persisted, applied before paint to avoid flash ----
+(function(){
+  var t = localStorage.getItem('lr_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+// ---- per-tab auth token propagation ----
+// sessionStorage is unique per browser tab, so each tab can hold a
+// different hospital's login without clobbering the others on refresh.
+window.LR_TOKEN = (function(){
+  var params = new URLSearchParams(location.search);
+  var tok = params.get('st');
+  if(tok){ sessionStorage.setItem('lr_token', tok); }
+  else { tok = sessionStorage.getItem('lr_token') || ''; }
+  return tok;
+})();
+</script>
+</head>
+<body>
+{% if me %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <a href="{{ url_for('dashboard') }}" class="sidebar-brand">
+      <div class="brand-mark">✚</div>
+      <div>
+        <div class="brand-name">LifeRoute</div>
+        <div class="brand-sub">Asset Network</div>
+      </div>
+    </a>
+
+    <div class="nav-group">
+      <div class="nav-label">Operate</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item {{ 'active' if request.endpoint=='dashboard' }}"><span class="ico">◧</span> Dashboard</a>
+      <a href="{{ url_for('new_request') }}" class="nav-item {{ 'active' if request.endpoint=='new_request' }}"><span class="ico">＋</span> New Request</a>
+      <a href="{{ url_for('inventory_page') }}" class="nav-item {{ 'active' if request.endpoint=='inventory_page' }}"><span class="ico">▤</span> Inventory</a>
+      <a href="{{ url_for('network') }}" class="nav-item {{ 'active' if request.endpoint=='network' }}"><span class="ico">◎</span> Network Map</a>
+      <a href="{{ url_for('doctors') }}" class="nav-item {{ 'active' if request.endpoint=='doctors' }}"><span class="ico">🩺</span> Doctors</a>
+      <a href="{{ url_for('analytics') }}" class="nav-item {{ 'active' if request.endpoint=='analytics' }}"><span class="ico">📊</span> Analytics</a>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">Account</div>
+      <a href="{{ url_for('documents') }}" class="nav-item {{ 'active' if request.endpoint=='documents' }}"><span class="ico">📄</span> Documents</a>
+      <a href="{{ url_for('subscription') }}" class="nav-item {{ 'active' if request.endpoint=='subscription' }}"><span class="ico">💳</span> Subscription</a>
+    </div>
+
+    <div class="sidebar-foot">
+      <button type="button" class="theme-toggle" id="themeToggle" title="Toggle dark / light">
+        <span class="tt-icon">🌙</span><span class="tt-label">Dark mode</span>
+        <span class="tt-switch"><span class="tt-knob"></span></span>
+      </button>
+      <div class="hospital-chip">
+        <div class="chip-avatar">{{ me.name[0] if me else 'H' }}</div>
+        <div>
+          <div class="chip-name">{{ me.name if me else '' }}</div>
+          <div class="chip-sub">Facility #{{ me.id if me else '' }} · this tab</div>
+        </div>
+      </div>
+      <a href="{{ url_for('logout') }}" class="nav-item logout" style="margin-top:10px;"><span class="ico">⏻</span> Log out (this tab)</a>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="flash-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, msg in messages %}
+            <div class="flash flash-{{ category }}">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+    {% block content %}{% endblock %}
+    <div class="footnote">LifeRoute — locally hosted network instance. Live data from a real SQLite database.</div>
+  </div>
+</div>
+
+<button type="button" class="sos-btn" id="sosBtn">🆘<br>SOS</button>
+<div class="sos-modal" id="sosModal">
+  <div class="sos-card">
+    <div class="sos-icon">🚨</div>
+    <h2>Emergency broadcast</h2>
+    <p>Send a Tier-1 alert to the network. Optionally trigger an automated voice call to an on-call number.</p>
+    <input type="tel" id="sosPhone" placeholder="On-call phone, e.g. +91 98100 00000">
+    <button type="button" class="btn-primary full" id="sosSend">Send SOS</button>
+    <button type="button" class="btn-ghost full" id="sosCancel" style="margin-top:8px;">Cancel</button>
+    <p class="hint" id="sosResult"></p>
+  </div>
+</div>
+<script>
+(function(){
+  var btn = document.getElementById('sosBtn'), modal = document.getElementById('sosModal');
+  if(!btn) return;
+  btn.addEventListener('click', ()=> modal.classList.add('open'));
+  document.getElementById('sosCancel').addEventListener('click', ()=> modal.classList.remove('open'));
+  document.getElementById('sosSend').addEventListener('click', function(){
+    var phone = document.getElementById('sosPhone').value.trim();
+    var result = document.getElementById('sosResult');
+    if(!phone){ result.textContent = 'Enter a phone number first.'; return; }
+    var fd = new FormData();
+    fd.append('phone', phone);
+    fd.append('st', window.LR_TOKEN);
+    fetch('/sos/call?st=' + encodeURIComponent(window.LR_TOKEN), {method:'POST', body: fd})
+      .then(r=>r.json()).then(data=>{ result.textContent = data.message || (data.ok ? 'Sent.' : 'Failed.'); })
+      .catch(()=>{ result.textContent = 'Failed to reach server.'; });
+  });
+})();
+</script>
+{% else %}
+  {% block auth_content %}{% endblock %}
+{% endif %}
+
+<script>
+// Propagate this tab's token onto every same-origin link and form so
+// navigation never loses the tab's identity, and refresh never swaps it
+// out for whatever the last tab logged in as.
+(function(){
+  var tok = window.LR_TOKEN;
+  function wire(){
+    if(!tok) return;
+    document.querySelectorAll('a[href^="/"]').forEach(function(a){
+      if(a.dataset.lrWired) return;
+      a.dataset.lrWired = '1';
+      try{
+        var u = new URL(a.href, location.origin);
+        if(!u.searchParams.has('st')) u.searchParams.set('st', tok);
+        a.href = u.pathname + '?' + u.searchParams.toString();
+      }catch(e){}
+    });
+    document.querySelectorAll('form').forEach(function(f){
+      if(f.querySelector('input[name="st"]')) return;
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'st'; inp.value = tok;
+      f.appendChild(inp);
+    });
+  }
+  document.addEventListener('DOMContentLoaded', wire);
+  // links/forms can be injected dynamically (e.g. request cards) — rewire on mutation
+  new MutationObserver(wire).observe(document.documentElement, {childList:true, subtree:true});
+})();
+
+// theme toggle
+(function(){
+  var btn = document.getElementById('themeToggle');
+  if(!btn) return;
+  function sync(){
+    var t = document.documentElement.getAttribute('data-theme');
+    btn.classList.toggle('is-dark', t === 'dark');
+    btn.querySelector('.tt-icon').textContent = t === 'dark' ? '🌙' : '☀️';
+    btn.querySelector('.tt-label').textContent = t === 'dark' ? 'Dark mode' : 'Light mode';
+  }
+  sync();
+  btn.addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('lr_theme', next);
+    sync();
+  });
+})();
+</script>
+</body>
+</html>

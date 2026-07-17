@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Register — LifeRoute{% endblock %}
+{% block auth_content %}
+<div class="auth-page">
+  <button type="button" class="theme-toggle auth-theme-toggle" id="themeToggle" style="width:auto;">
+    <span class="tt-icon">🌙</span><span class="tt-label">Dark</span>
+    <span class="tt-switch"><span class="tt-knob"></span></span>
+  </button>
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="brand-mark">✚</div>
+      <div>
+        <div class="brand-name">LifeRoute</div>
+        <div class="auth-sub">Medical Asset Network</div>
+      </div>
+    </div>
+    <h1 style="font-size:22px;">Register a hospital</h1>
+    <p class="auth-sub">Add your facility to the network with its real coordinates.</p>
+
+    <div class="flash-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}<div class="flash flash-{{ category }}">{{ msg }}</div>{% endfor %}
+      {% endwith %}
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+      <label>Facility name</label>
+      <input type="text" name="name" required>
+      <label>Username</label>
+      <input type="text" name="username" required>
+      <label>Password</label>
+      <input type="password" name="password" required>
+      <label>Contact phone <span class="dim">(used for the one-tap "Call hospital" button)</span></label>
+      <input type="tel" name="phone" placeholder="+91-11-XXXX-XXXX">
+      <div class="two-col">
+        <div><label>Latitude</label><input type="text" name="lat" placeholder="28.6139" required></div>
+        <div><label>Longitude</label><input type="text" name="lon" placeholder="77.2090" required></div>
+      </div>
+      <p class="hint">Tip: right-click your hospital's location on Google Maps and copy the coordinates shown.</p>
+
+      <label>Hospital license number</label>
+      <input type="text" name="license_number" placeholder="e.g. DL-HOSP-2024-00123" required>
+      <label>Registration document <span class="dim">(license / accreditation proof — PDF, JPG or PNG)</span></label>
+      <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png,.webp">
+      <p class="hint">This is reviewed by the LifeRoute admin team as part of onboarding verification.</p>
+
+      <label>Plan</label>
+      <div class="plan-pick-row">
+        {% for key, p in plans.items() %}
+        <label class="plan-pick {{ 'selected' if key==selected_plan }}" data-plan="{{ key }}">
+          <input type="radio" name="plan" value="{{ key }}" {{ 'checked' if key==selected_plan }}>
+          <div class="pp-name">{{ p.label }}</div>
+          <div class="pp-price">₹{{ '{:,}'.format(p.price_inr) }}/mo</div>
+          <div class="pp-sub">{{ p.audience }}</div>
+        </label>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn-primary full">Continue to payment →</button>
+    </form>
+    <p class="auth-alt">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
+    <p class="auth-alt"><a href="{{ url_for('index') }}">← Back to homepage</a></p>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.plan-pick').forEach(el=>{
+  el.addEventListener('click', ()=>{
+    document.querySelectorAll('.plan-pick').forEach(x=>x.classList.remove('selected'));
+    el.classList.add('selected');
+    el.querySelector('input').checked = true;
+  });
+});
+</script>
+{% endblock %}

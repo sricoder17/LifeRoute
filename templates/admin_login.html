@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Admin Login — LifeRoute{% endblock %}
+{% block auth_content %}
+<div class="auth-page">
+  <button type="button" class="theme-toggle auth-theme-toggle" id="themeToggle" style="width:auto;">
+    <span class="tt-icon">🌙</span><span class="tt-label">Dark</span>
+    <span class="tt-switch"><span class="tt-knob"></span></span>
+  </button>
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="brand-mark">✚</div>
+      <div>
+        <div class="brand-name">LifeRoute</div>
+        <div class="auth-sub">Admin Console</div>
+      </div>
+    </div>
+    <h1 style="font-size:22px;">Admin sign in</h1>
+    <p class="auth-sub">Internal access only — hospital onboarding review, license &amp; document verification.</p>
+
+    <div class="flash-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}<div class="flash flash-{{ category }}">{{ msg }}</div>{% endfor %}
+      {% endwith %}
+    </div>
+
+    <form method="post">
+      <label>Admin username</label>
+      <input type="text" name="username" required autofocus>
+      <label>Admin password</label>
+      <input type="password" name="password" required>
+      <button type="submit" class="btn-primary full">Sign in →</button>
+    </form>
+    <p class="auth-alt"><a href="{{ url_for('index') }}">← Back to homepage</a></p>
+  </div>
+</div>
+{% endblock %}

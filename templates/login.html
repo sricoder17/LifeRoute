@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Log in — LifeRoute{% endblock %}
+{% block auth_content %}
+<div class="auth-page">
+  <button type="button" class="theme-toggle auth-theme-toggle" id="themeToggle" style="width:auto;">
+    <span class="tt-icon">🌙</span><span class="tt-label">Dark</span>
+    <span class="tt-switch"><span class="tt-knob"></span></span>
+  </button>
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="brand-mark">✚</div>
+      <div>
+        <div class="brand-name">LifeRoute</div>
+        <div class="auth-sub">Medical Asset Network</div>
+      </div>
+    </div>
+    <h1 style="font-size:22px;">Welcome back</h1>
+    <p class="auth-sub">Sign in to your facility's control panel. Each browser tab keeps its own session, so you can log different hospitals into different tabs at once.</p>
+
+    <div class="flash-wrap">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}<div class="flash flash-{{ category }}">{{ msg }}</div>{% endfor %}
+      {% endwith %}
+    </div>
+
+    <form method="post" id="loginForm">
+      <label>Username</label>
+      <input type="text" name="username" id="username" required autofocus>
+      <label>Password</label>
+      <input type="password" name="password" id="password" required>
+      <button type="submit" class="btn-primary full">Log In</button>
+    </form>
+    <p class="auth-alt">No account? <a href="{{ url_for('register') }}">Register your hospital</a></p>
+    <p class="auth-alt"><a href="{{ url_for('index') }}">← Back to homepage</a></p>
+
+    <div class="demo-box">
+      <div class="demo-title">Demo accounts — tap to fill, then open a new tab to log in as another</div>
+      <div class="demo-row" data-u="stxavier"><span>St. Xavier General</span><span>stxavier</span></div>
+      <div class="demo-row" data-u="northridge"><span>North Ridge Trauma</span><span>northridge</span></div>
+      <div class="demo-row" data-u="cantt"><span>Delhi Cantt Base</span><span>cantt</span></div>
+      <div class="demo-row" data-u="rohini"><span>Rohini Sector-9</span><span>rohini</span></div>
+      <div class="demo-row" data-u="gk"><span>Greater Kailash Care</span><span>gk</span></div>
+    </div>
+  </div>
+</div>
+<script>
+document.querySelectorAll('.demo-row').forEach(row=>{
+  row.addEventListener('click', ()=>{
+    document.getElementById('username').value = row.dataset.u;
+    document.getElementById('password').value = 'demo123';
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Subscription — LifeRoute{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Subscription</h1>
+    <p class="sub-muted">Manage {{ me.name }}'s LifeRoute network plan.</p>
+  </div>
+</div>
+
+<div class="panel" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+  <div>
+    <div class="panel-title" style="margin-bottom:4px;">Current Plan</div>
+    <div style="font-size:20px; font-weight:700;">{{ plans[me.plan or 'essential'].label }}</div>
+    <div class="sub-muted">₹{{ '{:,}'.format(plans[me.plan or 'essential'].price_inr) }}/month · renews on the 1st · demo only, no billing connected</div>
+  </div>
+  <div class="status-pill pill-matched">ACTIVE</div>
+</div>
+
+<div class="plan-grid">
+  {% for key, p in plans.items() %}
+  <div class="plan-card {{ 'featured' if key==(me.plan or 'essential') }}">
+    {% if key==(me.plan or 'essential') %}<div class="plan-badge">Current Plan</div>{% endif %}
+    <div class="plan-name">{{ p.label }}</div>
+    <div class="plan-price">₹{{ '{:,}'.format(p.price_inr) }}<span>/mo</span></div>
+    <p class="plan-desc">{{ p.audience }}</p>
+    <ul class="plan-features">
+      {% if key=='essential' %}
+      <li>Up to 40 requests / month</li><li>Standard matching engine</li><li>Email support</li>
+      {% elif key=='professional' %}
+      <li>Unlimited requests</li><li>Multi-item smart allocation</li><li>Live traffic-aware ETA</li><li>Priority support</li>
+      {% else %}
+      <li>Everything in Professional</li><li>Multi-facility management</li><li>Dedicated account manager</li><li>Custom SLAs &amp; API access</li>
+      {% endif %}
+    </ul>
+    {% if key==(me.plan or 'essential') %}
+      <button class="btn-primary full-btn" disabled style="opacity:.6; cursor:default;">Current Plan</button>
+    {% else %}
+      <form method="post" action="{{ url_for('subscription_change') }}">
+        <input type="hidden" name="plan" value="{{ key }}">
+        <button type="submit" class="btn-ghost full-btn">Switch to {{ p.label }}</button>
+      </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel" style="margin-top:6px;">
+  <div class="panel-title">Billing History</div>
+  <div class="billing-row"><span>Jun 2026</span><span>{{ plans[me.plan or 'essential'].label }}</span><span class="mono">₹{{ '{:,}'.format(plans[me.plan or 'essential'].price_inr) }}.00</span><span class="status-pill pill-delivered">PAID</span></div>
+  <div class="billing-row"><span>May 2026</span><span>{{ plans[me.plan or 'essential'].label }}</span><span class="mono">₹{{ '{:,}'.format(plans[me.plan or 'essential'].price_inr) }}.00</span><span class="status-pill pill-delivered">PAID</span></div>
+</div>
+
+<p class="hint" style="text-align:center; margin-top:6px;">This page routes through a demo payment portal — no real payment provider is connected.</p>
+{% endblock %}

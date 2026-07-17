@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Documents — LifeRoute{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Documents</h1>
+    <p class="sub-muted">Your hospital's registration license and verification status on the LifeRoute network.</p>
+  </div>
+  {% if me.verified %}
+    <div class="status-pill pill-matched">✓ VERIFIED</div>
+  {% else %}
+    <div class="status-pill pill-pending">UNDER REVIEW</div>
+  {% endif %}
+</div>
+
+<div class="panel" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+  <div>
+    <div class="panel-title" style="margin-bottom:4px;">Hospital license</div>
+    <div style="font-size:20px; font-weight:700;">
+      {% if me.license_number %}{{ me.license_number }}{% else %}<span class="dim">Not on file</span>{% endif %}
+    </div>
+    <div class="sub-muted">
+      {% if me.verified %}
+        Verified by the LifeRoute admin team
+      {% else %}
+        Pending admin verification
+      {% endif %}
+    </div>
+  </div>
+  {% if me.document_filename %}
+  <a class="btn-primary" href="{{ url_for('static', filename='uploads/' + me.document_filename) }}" target="_blank" rel="noopener">📄 View submitted document</a>
+  {% else %}
+  <a class="btn-primary" href="{{ url_for('subscription') }}">Upload a document</a>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="panel-title">Submission details</div>
+  {% if renewal %}
+  <div class="doc-detail-grid">
+    <div class="doc-detail">
+      <div class="doc-detail-label">Submitted on</div>
+      <div class="doc-detail-value">{{ renewal.submitted.strftime('%d %b %Y') }}</div>
+    </div>
+    <div class="doc-detail">
+      <div class="doc-detail-label">Certification renewal due</div>
+      <div class="doc-detail-value">{{ renewal.due.strftime('%d %b %Y') }}</div>
+    </div>
+    <div class="doc-detail">
+      <div class="doc-detail-label">Time remaining</div>
+      <div class="doc-detail-value">
+        {% if renewal.status == 'overdue' %}
+          <span style="color:var(--red);">Overdue by {{ -renewal.days_left }} days</span>
+        {% else %}
+          {{ renewal.days_left }} days
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if renewal.status == 'overdue' %}
+    <div class="flash flash-error" style="margin-top:16px;">
+      ⚠ Your hospital's certification document is overdue for renewal. Please submit an updated license document to keep your account in good standing.
+    </div>
+  {% elif renewal.status == 'due_soon' %}
+    <div class="flash flash-error" style="margin-top:16px; background:var(--orange-soft, #fff4e0); color:var(--orange);">
+      ⏰ Renew certification in {{ renewal.days_left }} days — your license document is due for renewal within 3 years of submission.
+    </div>
+  {% else %}
+    <div class="flash flash-success" style="margin-top:16px;">
+      ✓ Documents are up to date. Renew certification by {{ renewal.due.strftime('%d %b %Y') }} (3 years from submission).
+    </div>
+  {% endif %}
+  {% else %}
+  <p class="sub-muted">No registration document has been submitted yet. Please upload your hospital license so the admin team can verify your account.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Payment — LifeRoute{% endblock %}
+{% block auth_content %}
+<div class="auth-page">
+  <button type="button" class="theme-toggle auth-theme-toggle" id="themeToggle" style="width:auto;">
+    <span class="tt-icon">🌙</span><span class="tt-label">Dark</span>
+    <span class="tt-switch"><span class="tt-knob"></span></span>
+  </button>
+  <div class="auth-card" style="width:460px;">
+    <div class="auth-logo">
+      <div class="brand-mark">✚</div>
+      <div>
+        <div class="brand-name">LifeRoute</div>
+        <div class="auth-sub">Secure checkout</div>
+      </div>
+    </div>
+    <h1 style="font-size:22px;">Activate your subscription</h1>
+    <p class="auth-sub">{{ hospital_name }} · {{ plan.label }} plan</p>
+
+    <div class="pay-summary">
+      <div class="pay-row"><span>Plan</span><span>{{ plan.label }}</span></div>
+      <div class="pay-row"><span>Billing</span><span>Monthly, auto-renew</span></div>
+      <div class="pay-row total"><span>Total due today</span><span>₹{{ '{:,}'.format(plan.price_inr) }}</span></div>
+    </div>
+
+    <form method="post" action="{{ url_for('payment_confirm') }}" id="payForm">
+      <input type="hidden" name="hospital_id" value="{{ request.args.get('hospital_id','') }}">
+      <input type="hidden" name="plan" value="{{ plan_key }}">
+      <label>Card number</label>
+      <input type="text" placeholder="4242 4242 4242 4242" maxlength="19" id="cardNum">
+      <div class="two-col">
+        <div><label>Expiry</label><input type="text" placeholder="MM/YY" id="cardExp"></div>
+        <div><label>CVV</label><input type="text" placeholder="123" maxlength="4" id="cardCvv"></div>
+      </div>
+      <label>Billing name</label>
+      <input type="text" placeholder="{{ hospital_name }}" id="cardName">
+      <button type="submit" class="btn-primary full" id="payBtn">Pay ₹{{ '{:,}'.format(plan.price_inr) }} &amp; activate</button>
+    </form>
+    <p class="hint" style="text-align:center;">Demo checkout — no real card is charged, no payment provider is connected. Any input works.</p>
+  </div>
+</div>
+
+<script>
+document.getElementById('payForm').addEventListener('submit', ()=>{
+  const btn = document.getElementById('payBtn');
+  btn.textContent = 'Processing payment…';
+  btn.disabled = true;
+});
+document.getElementById('cardNum')?.addEventListener('input', (e)=>{
+  e.target.value = e.target.value.replace(/\D/g,'').replace(/(.{4})/g,'$1 ').trim().slice(0,19);
+});
+</script>
+{% endblock %}

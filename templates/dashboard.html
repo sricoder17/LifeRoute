@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — LifeRoute{% endblock %}
+{% block content %}
+
+<div class="cmd-hero">
+  <div class="cmd-top">
+    <div>
+      <div class="cmd-eyebrow"><span class="pulse-dot"></span> LIVE · NETWORK OPERATIONAL <span class="cmd-clock-sep">·</span> <span id="cmdClock">--:--:--</span></div>
+      <h1>{{ me.name }}</h1>
+      <p class="cmd-sub">Connected to {{ network_count }} hospitals across the LifeRoute mutual-aid network. Real inventory, real matching, real routes.</p>
+    </div>
+    <div class="cmd-actions">
+      <a href="{{ url_for('network') }}" class="cmd-btn">◎ Network Map</a>
+      <a href="{{ url_for('new_request') }}" class="cmd-btn primary">＋ New Request</a>
+    </div>
+  </div>
+
+  <div class="cmd-stats">
+    <div class="cmd-stat" style="--_c:#4fa2ff;">
+      <div class="cs-icon" style="background:rgba(79,162,255,.18); color:#8fc0ff;">◎</div>
+      <div class="cs-val countup" data-target="{{ network_count }}">0</div>
+      <div class="cs-label">Hospitals in network</div>
+      <div class="cs-bar"></div>
+    </div>
+    <div class="cmd-stat" style="--_c:#ffb03d;">
+      <div class="cs-icon" style="background:rgba(255,176,61,.18); color:#ffcb7a;">↻</div>
+      <div class="cs-val countup" data-target="{{ active_count }}">0</div>
+      <div class="cs-label">Active requests</div>
+      <div class="cs-bar"></div>
+    </div>
+    <div class="cmd-stat" style="--_c:#4ade80;">
+      <div class="cs-icon" style="background:rgba(74,222,128,.18); color:#8ff0b3;">✓</div>
+      <div class="cs-val countup" data-target="{{ delivered_count }}">0</div>
+      <div class="cs-label">Delivered to date</div>
+      <div class="cs-bar"></div>
+    </div>
+    <div class="cmd-stat" style="--_c:#ff6259;">
+      <div class="cs-icon" style="background:rgba(255,98,89,.18); color:#ff9c96;">!</div>
+      <div class="cs-val countup" data-target="{{ low_stock }}">0</div>
+      <div class="cs-label">Assets at zero stock</div>
+      <div class="cs-bar"></div>
+    </div>
+  </div>
+</div>
+
+<div class="quick-grid">
+  <a href="{{ url_for('inventory_page') }}" class="quick-tile">
+    <div class="qt-icon" style="background:var(--blue-soft); color:var(--blue);">▤</div>
+    <div>
+      <div class="qt-title">Manage Inventory</div>
+      <div class="qt-sub">{{ low_stock }} assets at zero stock · full stock editor</div>
+    </div>
+    <div class="qt-arrow">→</div>
+  </a>
+  <a href="{{ url_for('new_request') }}" class="quick-tile">
+    <div class="qt-icon" style="background:var(--red-soft); color:var(--red);">＋</div>
+    <div>
+      <div class="qt-title">New Request</div>
+      <div class="qt-sub">Scan the network for verified stock</div>
+    </div>
+    <div class="qt-arrow">→</div>
+  </a>
+  <a href="{{ url_for('network') }}" class="quick-tile">
+    <div class="qt-icon" style="background:var(--teal-soft); color:var(--teal);">◎</div>
+    <div>
+      <div class="qt-title">Network Map</div>
+      <div class="qt-sub">Live routes, ETAs & traffic conditions</div>
+    </div>
+    <div class="qt-arrow">→</div>
+  </a>
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="panel">
+      <div class="panel-title">Outgoing Requests <span class="dim">sent by you</span></div>
+      {% if outgoing %}
+        {% for r in outgoing %}
+        <a class="req-card status-{{ r.status }}" href="{{ url_for('request_detail', req_id=r.id) }}">
+          <div>
+            <div class="req-asset">{{ r.asset_type }} × {{ r.quantity }}</div>
+            <div class="req-sub">{{ tier_info[r.tier].label }}{% if r.matched_name %} · from {{ r.matched_name }}{% endif %}</div>
+          </div>
+          <div class="status-pill">{{ r.status.replace('_',' ') }}</div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <p class="empty-note">No requests sent yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Incoming Requests <span class="dim">you are fulfilling</span></div>
+      {% if incoming %}
+        {% for r in incoming %}
+        <a class="req-card status-{{ r.status }}" href="{{ url_for('request_detail', req_id=r.id) }}">
+          <div>
+            <div class="req-asset">{{ r.asset_type }} × {{ r.quantity }}</div>
+            <div class="req-sub">{{ tier_info[r.tier].label }} · for {{ r.requester_name }}</div>
+          </div>
+          <div class="status-pill">{{ r.status.replace('_',' ') }}</div>
+        </a>
+        {% endfor %}
+      {% else %}
+        <p class="empty-note">No incoming requests.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="panel-title">Low Stock Watch <span class="dim">top items to restock</span></div>
+      {% set low_items = [] %}
+      {% for category, items in grouped.items() %}
+        {% for item in items %}
+          {% if item.quantity <= 2 %}{% set _ = low_items.append(item) %}{% endif %}
+        {% endfor %}
+      {% endfor %}
+      {% if low_items %}
+        {% for item in low_items[:8] %}
+        <div class="stock-preview-row">
+          <span class="sp-dot" style="background:{{ 'var(--red)' if item.quantity == 0 else 'var(--orange)' }};"></span>
+          <span class="sp-name">{{ item.asset_type }}</span>
+          <span class="sp-qty" style="color:{{ 'var(--red)' if item.quantity == 0 else 'var(--orange)' }};">{{ item.quantity }} left</span>
+        </div>
+        {% endfor %}
+        <a href="{{ url_for('inventory_page') }}" class="btn-ghost" style="display:block; text-align:center; margin-top:12px;">Open full inventory →</a>
+      {% else %}
+        <p class="empty-note">Everything is comfortably stocked. Nice work.</p>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Recent Activity <span class="dim">last few events</span></div>
+      <div class="activity-feed">
+        {% set combined = (outgoing[:5] + incoming[:5]) | sort(attribute='created_at', reverse=true) %}
+        {% if combined %}
+          {% for r in combined[:6] %}
+          <div class="activity-row">
+            <span class="activity-dot" style="background:{{
+              'var(--green)' if r.status=='delivered' else
+              'var(--teal)' if r.status=='in_transit' else
+              'var(--violet)' if r.status=='dispatched' else
+              'var(--blue)' if r.status=='matched' else 'var(--orange)' }};"></span>
+            <div>
+              <div class="activity-text">
+                {{ r.asset_type }} × {{ r.quantity }} —
+                <b>{{ r.status.replace('_',' ') }}</b>
+                {% if r.matched_name %} via {{ r.matched_name }}{% elif r.requester_name %} for {{ r.requester_name }}{% endif %}
+              </div>
+              <div class="activity-time">{{ r.created_at[:19].replace('T',' ') }} UTC</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty-note">No activity yet — send your first request to get started.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.countup').forEach(el=>{
+  const target = parseInt(el.dataset.target)||0;
+  let cur = 0;
+  const step = Math.max(1, Math.ceil(target/24));
+  const iv = setInterval(()=>{
+    cur += step;
+    if(cur>=target){ cur=target; clearInterval(iv); }
+    el.textContent = cur;
+  }, 22);
+});
+
+// live clock next to the "network operational" status
+const cmdClockEl = document.getElementById('cmdClock');
+function tickCmdClock(){
+  if(cmdClockEl) cmdClockEl.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+tickCmdClock();
+setInterval(tickCmdClock, 1000);
+</script>
+{% endblock %}

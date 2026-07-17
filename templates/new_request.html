@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}New Request — LifeRoute{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Request Assets</h1>
+    <p class="sub-muted">Add one or more items to your cart — the engine tries to fill everything from a single hospital first, then splits smartly across the network if it can't.</p>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel narrow" style="max-width:none;">
+    <div class="panel-title">Add an item</div>
+    <label>Category</label>
+    <div class="cat-tabs" id="catTabs">
+      {% for category in catalog.keys() %}
+      <div class="cat-tab {{ 'active' if loop.first }}" data-cat="{{ category }}">{{ category }}</div>
+      {% endfor %}
+      <div class="cat-tab" data-cat="__custom__">Something Else</div>
+    </div>
+
+    {% for category, assets in catalog.items() %}
+    <div class="asset-grid cat-panel" data-cat="{{ category }}" style="{{ '' if loop.first else 'display:none;' }}">
+      {% for asset in assets %}
+      <label class="asset-card-opt">
+        <input type="radio" name="asset_type" value="{{ asset }}" {% if loop.first and category==catalog.keys()|list|first %}checked{% endif %}>
+        {{ asset }}
+      </label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="cat-panel" data-cat="__custom__" style="display:none;">
+      <label>Describe what you need</label>
+      <input type="text" id="customAssetInput" class="field-input" placeholder="e.g. Pediatric Crash Cart, Neonatal Incubator...">
+    </div>
+
+    <label>Quantity Needed</label>
+    <input type="number" id="qtyInput" class="field-input" value="1" min="1">
+
+    <label>Risk Tier</label>
+    <div class="tier-radios" id="tierRadios">
+      {% for t, info in tier_info.items() %}
+      <label class="tier-radio {{ 'selected' if t==1 }}" data-tier="{{ t }}">
+        <input type="radio" name="tier" value="{{ t }}" {% if t==1 %}checked{% endif %}>
+        <div>
+          <div class="t-name">{{ info.label }}</div>
+        </div>
+        <div class="t-win">{{ info.window }}</div>
+      </label>
+      {% endfor %}
+    </div>
+
+    <button type="button" class="btn-primary full" id="addItemBtn" style="margin-top:20px;">＋ Add to request</button>
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="panel-title">Request Cart <span class="dim" id="cartCount">0 items</span></div>
+      <div id="cartList"></div>
+      <p class="empty-note" id="cartEmpty">No items added yet — add at least one item on the left.</p>
+
+      <label style="margin-top:16px;">Notes for the fulfilling hospital(s) (optional)</label>
+      <textarea id="notesInput" class="field-input" rows="3" placeholder="Any clinical context, contact details, or handling instructions..."></textarea>
+
+      <form method="post" id="reqForm" action="{{ url_for('new_request') }}">
+        <input type="hidden" name="items_json" id="itemsJsonField">
+        <input type="hidden" name="notes" id="notesField">
+        <button type="submit" class="btn-primary full" id="submitBtn" disabled>Run Allocation Match</button>
+      </form>
+      <p class="hint">The engine scans every other hospital's real, currently saved inventory, computes real road distance and traffic-aware travel time, and tries to lock the whole cart to one hospital before splitting it across the network.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const tabs = document.querySelectorAll('.cat-tab');
+const panels = document.querySelectorAll('.cat-panel');
+let activeCat = tabs[0].dataset.cat;
+panels.forEach(p=>{ p.querySelectorAll('input[name=asset_type]').forEach(inp=> inp.disabled = p.dataset.cat!==activeCat); });
+
+tabs.forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    tabs.forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    activeCat = tab.dataset.cat;
+    panels.forEach(p=>{
+      const isActive = p.dataset.cat===activeCat;
+      p.style.display = isActive ? '' : 'none';
+      p.querySelectorAll('input[name=asset_type]').forEach(inp=> inp.disabled = !isActive);
+    });
+  });
+});
+
+document.querySelectorAll('.asset-card-opt input').forEach(inp=>{
+  inp.addEventListener('change', ()=>{
+    document.querySelectorAll('.asset-card-opt').forEach(o=>o.classList.remove('selected'));
+    inp.closest('.asset-card-opt').classList.add('selected');
+  });
+});
+document.querySelector('.asset-card-opt input')?.closest('.asset-card-opt')?.classList.add('selected');
+
+document.querySelectorAll('.tier-radio').forEach(r=>{
+  r.addEventListener('click', ()=>{
+    document.querySelectorAll('.tier-radio').forEach(x=>x.classList.remove('selected'));
+    r.classList.add('selected');
+    r.querySelector('input').checked = true;
+  });
+});
+
+const TIER_LABELS = {
+  {% for t, info in tier_info.items() %}"{{ t }}": "{{ info.label }}",{% endfor %}
+};
+
+let cart = [];
+function renderCart(){
+  const wrap = document.getElementById('cartList');
+  const empty = document.getElementById('cartEmpty');
+  const count = document.getElementById('cartCount');
+  const submitBtn = document.getElementById('submitBtn');
+  count.textContent = cart.length + (cart.length===1 ? ' item' : ' items');
+  submitBtn.disabled = cart.length === 0;
+  wrap.innerHTML = '';
+  if(!cart.length){ empty.style.display=''; return; }
+  empty.style.display = 'none';
+  cart.forEach((item, i)=>{
+    const row = document.createElement('div');
+    row.className = 'cart-row';
+    row.innerHTML = `
+      <div>
+        <div class="cart-item-name">${item.display} × ${item.quantity}</div>
+        <div class="cart-item-sub">${TIER_LABELS[item.tier]}</div>
+      </div>
+      <button type="button" class="cart-remove" data-i="${i}">✕</button>`;
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll('.cart-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ cart.splice(parseInt(btn.dataset.i),1); renderCart(); });
+  });
+}
+
+document.getElementById('addItemBtn').addEventListener('click', ()=>{
+  let assetType, display;
+  if(activeCat === '__custom__'){
+    assetType = '__custom__';
+    display = document.getElementById('customAssetInput').value.trim();
+    if(!display){ alert('Describe what you need first.'); return; }
+  } else {
+    const checked = document.querySelector(`.cat-panel[data-cat="${activeCat}"] input[name=asset_type]:checked`);
+    if(!checked){ alert('Pick an asset first.'); return; }
+    assetType = checked.value;
+    display = checked.value;
+  }
+  const quantity = Math.max(1, parseInt(document.getElementById('qtyInput').value)||1);
+  const tier = document.querySelector('input[name=tier]:checked').value;
+  cart.push({asset_type: assetType, custom_asset: activeCat==='__custom__' ? display : undefined, quantity, tier, display});
+  renderCart();
+  if(activeCat === '__custom__') document.getElementById('customAssetInput').value = '';
+});
+
+document.getElementById('reqForm').addEventListener('submit', (e)=>{
+  document.getElementById('itemsJsonField').value = JSON.stringify(cart);
+  document.getElementById('notesField').value = document.getElementById('notesInput').value;
+  const btn = document.getElementById('submitBtn');
+  btn.textContent = 'Scanning network…';
+  btn.disabled = true;
+});
+
+renderCart();
+</script>
+{% endblock %}

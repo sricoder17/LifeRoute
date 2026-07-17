@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Admin Console — LifeRoute{% endblock %}
+{% block auth_content %}
+<div class="content" style="max-width:1320px;">
+  <div class="page-head">
+    <div>
+      <h1>Admin Console</h1>
+      <p class="sub-muted">Hospital onboarding review — documentation, inventory, requests and network reliability.</p>
+    </div>
+    <a href="{{ url_for('admin_logout') }}" class="btn-ghost">⏻ Log out</a>
+  </div>
+
+  <div class="flash-wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, msg in messages %}<div class="flash flash-{{ category }}">{{ msg }}</div>{% endfor %}
+    {% endwith %}
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-ico">🏥</div>
+      <div class="kpi-val">{{ totals.hospitals }}</div>
+      <div class="kpi-label">Registered hospitals</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-ico">✅</div>
+      <div class="kpi-val">{{ totals.fulfilled }}</div>
+      <div class="kpi-label">Requests fulfilled (network-wide)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-ico">▤</div>
+      <div class="kpi-val">{{ '{:,}'.format(totals.inventory_units) }}</div>
+      <div class="kpi-label">Total inventory units</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-ico">🛡️</div>
+      <div class="kpi-val">{{ totals.avg_reliability }}%</div>
+      <div class="kpi-label">Avg. network reliability</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-ico">⚠️</div>
+      <div class="kpi-val">{{ totals.unverified }}</div>
+      <div class="kpi-label">Awaiting verification</div>
+    </div>
+  </div>
+
+  <div class="admin-tabs">
+    <a href="{{ url_for('admin_dashboard', tab='documentation') }}" class="admin-tab {{ 'active' if tab=='documentation' }}">📄 Documentation</a>
+    <a href="{{ url_for('admin_dashboard', tab='inventory') }}" class="admin-tab {{ 'active' if tab=='inventory' }}">▤ Inventory</a>
+    <a href="{{ url_for('admin_dashboard', tab='requests') }}" class="admin-tab {{ 'active' if tab=='requests' }}">↔ Requests</a>
+    <a href="{{ url_for('admin_dashboard', tab='reliability') }}" class="admin-tab {{ 'active' if tab=='reliability' }}">🛡️ Reliability</a>
+  </div>
+
+  {% if tab == 'documentation' %}
+  <div class="panel">
+    <div class="panel-title">Hospital documentation<span class="dim">{{ rows|length }} total</span></div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Hospital</th>
+            <th>License number</th>
+            <th>Document</th>
+            <th>Submitted</th>
+            <th>Renewal due</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          {% set h = r.hospital %}
+          <tr>
+            <td>
+              <div class="admin-hospital-name">{{ h.name }}</div>
+              <div class="admin-hospital-sub">@{{ h.username }} · #{{ h.id }}</div>
+            </td>
+            <td>
+              {% if h.license_number %}<span class="mono-chip">{{ h.license_number }}</span>
+              {% else %}<span class="dim">Not provided</span>{% endif %}
+            </td>
+            <td>
+              {% if h.document_filename %}
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <a class="doc-badge has-doc" href="{{ url_for('static', filename='uploads/' + h.document_filename) }}" target="_blank" rel="noopener">👁 View</a>
+                  <a class="doc-badge has-doc" href="{{ url_for('admin_download_document', hospital_id=h.id) }}">⬇ Download</a>
+                </div>
+              {% else %}
+                <span class="doc-badge no-doc">✕ Not submitted</span>
+              {% endif %}
+            </td>
+            <td class="admin-hospital-sub">{{ r.renewal.submitted.strftime('%d %b %Y') if r.renewal else '—' }}</td>
+            <td class="admin-hospital-sub">{{ r.renewal.due.strftime('%d %b %Y') if r.renewal else '—' }}</td>
+            <td>
+              {% if r.renewal and r.renewal.status == 'overdue' %}
+                <span class="status-pill pill-unmatched">Renewal overdue</span>
+              {% elif r.renewal and r.renewal.status == 'due_soon' %}
+                <span class="status-pill pill-pending">Due in {{ r.renewal.days_left }}d</span>
+              {% elif h.verified %}
+                <span class="status-pill pill-matched">✓ Verified</span>
+              {% else %}
+                <span class="status-pill pill-pending">Under review</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('admin_toggle_verify', hospital_id=h.id) }}?tab=documentation">
+                <button type="submit" class="btn-ghost" style="padding:7px 12px; font-size:11.5px;">
+                  {{ 'Unverify' if h.verified else 'Mark verified' }}
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="dim" style="text-align:center; padding:24px;">No hospitals registered yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif tab == 'inventory' %}
+  <div class="panel">
+    <div class="panel-title">Hospital inventory<span class="dim">{{ rows|length }} total</span></div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Hospital</th>
+            <th>Plan</th>
+            <th>Total units</th>
+            <th>Stocked lines</th>
+            <th>Out-of-stock lines</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          {% set h = r.hospital %}
+          <tr>
+            <td>
+              <div class="admin-hospital-name">{{ h.name }}</div>
+              <div class="admin-hospital-sub">@{{ h.username }} · #{{ h.id }}</div>
+            </td>
+            <td>{{ r.plan_label }}</td>
+            <td><strong>{{ '{:,}'.format(r.inventory_units) }}</strong></td>
+            <td>{{ r.inventory_lines }}</td>
+            <td>
+              {% if r.inventory_zero_lines > 0 %}
+                <span class="status-pill pill-unmatched">{{ r.inventory_zero_lines }} empty</span>
+              {% else %}
+                <span class="status-pill pill-matched">Fully stocked</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="dim" style="text-align:center; padding:24px;">No hospitals registered yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif tab == 'requests' %}
+  <div class="panel">
+    <div class="panel-title">Requests asked &amp; fulfilled<span class="dim">{{ rows|length }} total</span></div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Hospital</th>
+            <th>Requests asked</th>
+            <th>Asked · delivered</th>
+            <th>Asked · pending</th>
+            <th>Requests fulfilled (as supplier)</th>
+            <th>Assigned to fulfill</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          {% set h = r.hospital %}
+          <tr>
+            <td>
+              <div class="admin-hospital-name">{{ h.name }}</div>
+              <div class="admin-hospital-sub">@{{ h.username }} · #{{ h.id }}</div>
+            </td>
+            <td>{{ r.asked_total }}</td>
+            <td>{{ r.asked_delivered }}</td>
+            <td>{{ r.asked_pending }}</td>
+            <td><strong>{{ r.reliability.delivered }}</strong></td>
+            <td>{{ r.reliability.assigned }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="dim" style="text-align:center; padding:24px;">No hospitals registered yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif tab == 'reliability' %}
+  <div class="panel">
+    <div class="panel-title">Network reliability score<span class="dim">Delivered ÷ assigned supply requests</span></div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Hospital</th>
+            <th>Assigned</th>
+            <th>Delivered</th>
+            <th>Reliability</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows|sort(attribute='reliability.score', reverse=True) %}
+          {% set h = r.hospital %}
+          <tr>
+            <td>
+              <div class="admin-hospital-name">{{ h.name }}</div>
+              <div class="admin-hospital-sub">@{{ h.username }} · #{{ h.id }}</div>
+            </td>
+            <td>{{ r.reliability.assigned }}</td>
+            <td>{{ r.reliability.delivered }}</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <div class="reliability-bar">
+                  <div class="reliability-bar-fill reliability-{{ r.reliability.band }}" style="width:{{ r.reliability.score }}%;"></div>
+                </div>
+                <span class="status-pill {{ 'pill-matched' if r.reliability.band=='high' else ('pill-pending' if r.reliability.band=='mid' else 'pill-unmatched') }}">
+                  {{ r.reliability.score }}%{% if r.reliability.band=='new' %} · new{% endif %}
+                </span>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="dim" style="text-align:center; padding:24px;">No hospitals registered yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="footnote">LifeRoute Admin Console — internal use only. Not linked from the public site.</div>
+</div>
+{% endblock %}

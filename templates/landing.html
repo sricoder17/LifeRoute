@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}LifeRoute — Real-Time Medical Asset Network{% endblock %}
+{% block auth_content %}
+<div class="landing">
+
+  <nav class="ld-nav">
+    <div class="ld-brand"><div class="brand-mark">✚</div><span>LifeRoute</span></div>
+    <div class="ld-nav-links">
+      <a href="#problem">Problem</a>
+      <a href="#market">Market</a>
+      <a href="#pricing">Pricing</a>
+      <a href="{{ url_for('login') }}" class="ld-nav-login">Log in</a>
+      <a href="{{ url_for('register') }}" class="btn-primary" style="margin:0; padding:10px 18px;">Get Started</a>
+      <button type="button" class="theme-toggle ld-theme-toggle" id="themeToggle" title="Toggle dark / light">
+        <span class="tt-icon">🌙</span><span class="tt-label" style="display:none;">Dark mode</span>
+        <span class="tt-switch"><span class="tt-knob"></span></span>
+      </button>
+    </div>
+  </nav>
+
+  <header class="ld-hero">
+    <div class="ld-hero-grid"></div>
+    <div class="ld-hero-glow g1"></div>
+    <div class="ld-hero-glow g2"></div>
+    <div class="ld-hero-inner">
+      <div class="ld-badge"><span class="pulse-mini"></span> Live network · real hospitals · real inventory</div>
+      <h1 class="ld-h1">When minutes matter,<br><span class="grad-text">hospitals shouldn't be searching.</span></h1>
+      <p class="ld-sub">LifeRoute connects hospitals, blood banks and specialists into one real-time network — so a shortage of blood, equipment or a specialist becomes a 90-second match instead of a frantic phone chain.</p>
+      <div class="ld-cta-row">
+        <a href="{{ url_for('register') }}" class="btn-primary" style="font-size:15px; padding:15px 26px;">Register your hospital →</a>
+        <a href="{{ url_for('login') }}" class="btn-ghost" style="font-size:15px; padding:15px 26px;">I already have an account</a>
+      </div>
+      <div class="ld-trust">Trusted logistics logic · SaaS · cloud-deployed · B2B enterprise ready</div>
+    </div>
+  </header>
+
+  <section class="ld-section" id="problem">
+    <div class="ld-kicker">The Problem</div>
+    <h2 class="ld-h2">Preventable delays cost lives.</h2>
+    <p class="ld-lead">Healthcare facilities frequently experience shortages of critical resources such as blood units, medical equipment, medicines, and specialist doctors during emergencies. Existing communication methods are slow, fragmented, and often result in preventable delays that can cost lives.</p>
+    <div class="ld-problem-grid">
+      <div class="ld-problem-card"><div class="pc-ico">📞</div><div class="pc-title">Phone-chain chaos</div><div class="pc-sub">Front desks calling hospital after hospital, hoping someone picks up.</div></div>
+      <div class="ld-problem-card"><div class="pc-ico">🩸</div><div class="pc-title">Invisible inventory</div><div class="pc-sub">No hospital can see another's real-time blood or equipment stock.</div></div>
+      <div class="ld-problem-card"><div class="pc-ico">🚑</div><div class="pc-title">No live logistics</div><div class="pc-sub">Once stock is found, there's no tracking, ETA, or traffic awareness.</div></div>
+      <div class="ld-problem-card"><div class="pc-ico">⏱️</div><div class="pc-title">Minutes lost = lives lost</div><div class="pc-sub">In critical windows, every extra minute of searching is a real cost.</div></div>
+    </div>
+  </section>
+
+  <section class="ld-section alt" id="market">
+    <div class="ld-kicker">Market Opportunity</div>
+    <h2 class="ld-h2">A national network, ready to connect.</h2>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-ico">🏥</div><div class="kpi-val">70,000+</div><div class="kpi-label">Hospitals across India</div></div>
+      <div class="kpi-card"><div class="kpi-ico">🩸</div><div class="kpi-val">3,000+</div><div class="kpi-label">Licensed blood banks</div></div>
+      <div class="kpi-card"><div class="kpi-ico">🏥</div><div class="kpi-val">36,000+</div><div class="kpi-label">Hospitals empanelled under Ayushman Bharat</div></div>
+      <div class="kpi-card"><div class="kpi-ico">👥</div><div class="kpi-val">86.9 Cr</div><div class="kpi-label">ABHA digital health IDs created</div></div>
+    </div>
+    <p class="ld-source">Sources: Government of India (ABDM, PM-JAY)</p>
+  </section>
+
+  <section class="ld-section" id="features">
+    <div class="ld-kicker">How It Works</div>
+    <h2 class="ld-h2">One request. The whole network responds.</h2>
+    <div class="ld-feature-grid">
+      <div class="ld-feature">
+        <div class="lf-num">01</div>
+        <div class="lf-title">Request anything, in one go</div>
+        <div class="lf-sub">Blood units, ventilators, specialists, or antidotes — bundle multiple items into a single cart-style request.</div>
+      </div>
+      <div class="ld-feature">
+        <div class="lf-num">02</div>
+        <div class="lf-title">Smart, traffic-aware matching</div>
+        <div class="lf-sub">The engine tries to fill your whole request from one hospital first; if not, it intelligently splits it across the network — always picking the fastest real route, not just the nearest one.</div>
+      </div>
+      <div class="ld-feature">
+        <div class="lf-num">03</div>
+        <div class="lf-title">Real roads, live traffic, live ETA</div>
+        <div class="lf-sub">Every shipment follows an actual road route with live traffic conditions factored into arrival time — tracked in real time on the network map.</div>
+      </div>
+      <div class="ld-feature">
+        <div class="lf-num">04</div>
+        <div class="lf-title">Emergency SOS broadcast</div>
+        <div class="lf-sub">One tap sends a Tier-1 alert to the entire network, with optional automated voice calling to an on-call number.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ld-section alt" id="pricing">
+    <div class="ld-kicker">Pricing</div>
+    <h2 class="ld-h2">Simple, per-facility pricing.</h2>
+    <div class="plan-grid">
+      {% for key, p in plans.items() %}
+      <div class="plan-card {{ 'featured' if key=='professional' }}">
+        {% if key=='professional' %}<div class="plan-badge">Most Popular</div>{% endif %}
+        <div class="plan-name">{{ p.label }}</div>
+        <div class="plan-price">₹{{ '{:,}'.format(p.price_inr) }}<span>/mo</span></div>
+        <p class="plan-desc">{{ p.audience }}</p>
+        <ul class="plan-features">
+          {% if key=='essential' %}
+          <li>Up to 40 requests / month</li><li>Standard matching engine</li><li>Email support</li>
+          {% elif key=='professional' %}
+          <li>Unlimited requests</li><li>Multi-item smart allocation</li><li>Live traffic-aware ETA</li><li>Priority support</li>
+          {% else %}
+          <li>Everything in Professional</li><li>Multi-facility management</li><li>Dedicated account manager</li><li>Custom SLAs &amp; API access</li>
+          {% endif %}
+        </ul>
+        <a href="{{ url_for('register', plan=key) }}" class="btn-primary full-btn">Choose {{ p.label }}</a>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="ld-section ld-final">
+    <h2 class="ld-h2">Give your hospital a live line into the network.</h2>
+    <p class="ld-lead">Registration takes two minutes. No hardware, no IT project — just a browser.</p>
+    <a href="{{ url_for('register') }}" class="btn-primary" style="font-size:15px; padding:16px 30px;">Register your hospital →</a>
+  </section>
+
+  <footer class="ld-footer">
+    <div class="ld-brand"><div class="brand-mark">✚</div><span>LifeRoute</span></div>
+    <div class="ld-footer-sub">SaaS · Cloud-deployed · Recurring revenue · Asset-light infrastructure · B2B enterprise</div>
+  </footer>
+</div>
+{% endblock %}

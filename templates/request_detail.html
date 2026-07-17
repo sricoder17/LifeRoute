@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}Request #{{ r.id }} — LifeRoute{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<div class="page-head">
+  <div>
+    <h1>{{ r.asset_type }}</h1>
+    <p class="sub-muted">Request #{{ r.id }} · × {{ r.quantity }} · {{ tier_info[r.tier].label }}{% if r.group_id %} · part of a multi-item request{% endif %}</p>
+  </div>
+  <div class="status-pill pill-{{ r.status }}" id="statusPill">{{ r.status.replace('_',' ') }}</div>
+</div>
+
+{% if siblings %}
+<div class="panel">
+  <div class="panel-title">Other items in this request <span class="dim">same cart · {{ siblings|length + 1 }} total</span></div>
+  <div class="sibling-row"><span><b>{{ r.asset_type }}</b> × {{ r.quantity }} (this page)</span><span class="status-pill pill-{{ r.status }}">{{ r.status.replace('_',' ') }}</span></div>
+  {% for s in siblings %}
+  <div class="sibling-row">
+    <span><a href="{{ url_for('request_detail', req_id=s.id) }}">{{ s.asset_type }} × {{ s.quantity }}</a>{% if s.matched_name %} · from {{ s.matched_name }}{% endif %}</span>
+    <span class="status-pill pill-{{ s.status }}">{{ s.status.replace('_',' ') }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div id="etaHero" class="eta-hero" style="{{ '' if r.status in ['dispatched','in_transit'] else 'display:none;' }}">
+  <div>
+    <div class="lbl">Estimated arrival</div>
+    <div class="big" id="etaCountdown">—</div>
+  </div>
+  <div style="text-align:right;">
+    <div class="lbl">Road distance</div>
+    <div class="big" style="font-size:20px;">{{ r.distance_km if r.distance_km else '—' }} km</div>
+    {% if live_traffic_level %}
+    <span class="traffic-chip {{ live_traffic_level }}" style="margin-top:6px;"><span class="tc-dot"></span>{{ live_traffic_level }} traffic · {{ live_traffic_mult }}×</span>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid-2">
+  <div>
+    <div class="panel">
+      <div class="panel-title">Live Route</div>
+      <div class="speed-panel" style="margin-bottom:14px;">
+        <span class="sp-label">⏩ Playback</span>
+        <input type="range" id="speedSlider" min="1" max="120" value="1" step="1">
+        <span class="speed-val" id="speedVal">1×</span>
+      </div>
+      <div class="map-container">
+        {% if r.status in ['dispatched','in_transit'] %}
+        <div class="live-badge"><span class="live-dot"></span> LIVE TRACKING</div>
+        {% endif %}
+        <div id="map" style="height:380px;"></div>
+      </div>
+      {% if r.matched_name %}
+      <div class="metric-row">
+        <div class="metric-box"><div class="m-label">Requesting</div><div class="m-val" style="font-size:13px;">{{ r.requester_name }}</div></div>
+        <div class="metric-box"><div class="m-label">Fulfilling</div><div class="m-val" style="font-size:13px;">{{ r.matched_name }}</div></div>
+      </div>
+      {% if r.matched_hospital_id == me.id and r.requester_phone %}
+        <a class="btn-call" href="tel:{{ r.requester_phone }}">📞 Call {{ r.requester_name }} — {{ r.requester_phone }}</a>
+      {% elif r.requester_id == me.id and r.matched_phone %}
+        <a class="btn-call" href="tel:{{ r.matched_phone }}">📞 Call {{ r.matched_name }} — {{ r.matched_phone }}</a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="panel-title">Fulfillment Timeline</div>
+      <div class="timeline" id="timeline">
+        <div class="tl-step" data-step="pending">
+          <div class="tl-line"></div>
+          <div class="tl-dot">1</div>
+          <div class="tl-content">
+            <div class="tl-title">Request submitted</div>
+            <div class="tl-time">{{ r.created_at[:19].replace('T',' ') }}</div>
+          </div>
+        </div>
+        <div class="tl-step" data-step="matched">
+          <div class="tl-line"></div>
+          <div class="tl-dot">2</div>
+          <div class="tl-content">
+            <div class="tl-title">Matched with nearest verified stock</div>
+            <div class="tl-time" data-field="matched_at">{{ (r.matched_at[:19].replace('T',' ')) if r.matched_at else 'Pending' }}</div>
+          </div>
+        </div>
+        <div class="tl-step" data-step="dispatched">
+          <div class="tl-line"></div>
+          <div class="tl-dot">3</div>
+          <div class="tl-content">
+            <div class="tl-title">Dispatched from fulfilling hospital</div>
+            <div class="tl-time" data-field="dispatched_at">{{ (r.dispatched_at[:19].replace('T',' ')) if r.dispatched_at else 'Pending' }}</div>
+          </div>
+        </div>
+        <div class="tl-step" data-step="in_transit">
+          <div class="tl-line"></div>
+          <div class="tl-dot">4</div>
+          <div class="tl-content">
+            <div class="tl-title">In transit</div>
+            <div class="tl-time" data-field="transit_at">{{ (r.transit_at[:19].replace('T',' ')) if r.transit_at else 'Pending' }}</div>
+          </div>
+        </div>
+        <div class="tl-step" data-step="delivered">
+          <div class="tl-dot">✓</div>
+          <div class="tl-content">
+            <div class="tl-title">Delivered</div>
+            <div class="tl-time" data-field="delivered_at">{{ (r.delivered_at[:19].replace('T',' ')) if r.delivered_at else 'Pending' }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% if not r.matched_name %}
+      <p class="empty-note" style="margin-top:14px;">No hospital in the network currently has enough verified stock. Try lowering the quantity or check back once inventory updates.</p>
+      {% endif %}
+
+      <div id="actionZone">
+      {% if r.matched_hospital_id == me.id %}
+        {% if r.status == 'matched' %}
+          <form method="post" action="{{ url_for('dispatch_request', req_id=r.id) }}"><button class="btn-primary full tier{{ r.tier }}">Mark as Dispatched</button></form>
+        {% elif r.status == 'dispatched' %}
+          <form method="post" action="{{ url_for('transit_request', req_id=r.id) }}"><button class="btn-primary full tier{{ r.tier }}">Start Transit</button></form>
+        {% elif r.status == 'in_transit' %}
+          <p class="empty-note" style="margin-top:10px;">In transit — the requesting hospital confirms delivery once it physically arrives.</p>
+        {% endif %}
+      {% elif r.requester_id == me.id %}
+        {% if r.status == 'in_transit' %}
+          <form method="post" action="{{ url_for('fulfill_request', req_id=r.id) }}"><button class="btn-primary full" style="background:var(--green); color:#06210f;">Confirm Delivered</button></form>
+        {% elif r.status in ['matched','dispatched'] %}
+          <p class="empty-note" style="margin-top:10px;">Waiting on {{ r.matched_name }} to dispatch and start transit.</p>
+        {% endif %}
+      {% endif %}
+      </div>
+
+      {% if r.notes %}
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--line);">
+        <div class="panel-title" style="margin-bottom:6px;">Notes</div>
+        <p style="font-size:12.5px; color:var(--ink-soft); line-height:1.5;">{{ r.notes }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+const reqId = {{ r.id }};
+const statusOrder = ["pending","matched","dispatched","in_transit","delivered"];
+let currentStatus = "{{ r.status }}";
+const etaMin = {{ r.eta_min if r.eta_min else 'null' }};
+let transitAt = {{ ('"'+r.transit_at+'"') if r.transit_at else 'null' }};
+let speedMult = 1;
+
+const speedSlider = document.getElementById('speedSlider');
+const speedVal = document.getElementById('speedVal');
+speedSlider.addEventListener('input', ()=>{
+  speedMult = parseInt(speedSlider.value) || 1;
+  speedVal.textContent = speedMult + '×';
+});
+
+function applyTimelineState(status){
+  const idx = statusOrder.indexOf(status);
+  document.querySelectorAll('.tl-step').forEach(step=>{
+    const stepIdx = statusOrder.indexOf(step.dataset.step);
+    step.classList.remove('done','current','pending-step');
+    if(status==='unmatched' && step.dataset.step!=='pending'){ step.classList.add('pending-step'); return; }
+    if(stepIdx < idx) step.classList.add('done');
+    else if(stepIdx === idx) step.classList.add('current');
+    else step.classList.add('pending-step');
+  });
+}
+applyTimelineState(currentStatus);
+
+// ---- map setup ----
+const originLatLng = [{{ r.r_lat }}, {{ r.r_lon }}];
+const map = L.map('map', {zoomControl:true}).setView(originLatLng, 12); // always give Leaflet a center+zoom at init time
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19
+}).addTo(map);
+
+const originIcon = L.divIcon({className:'', html:'<div style="width:16px;height:16px;border-radius:50%;background:#ff6259;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>'});
+L.marker(originLatLng, {icon: originIcon}).addTo(map).bindPopup("{{ r.requester_name }} (requesting)");
+
+let vehicleMarker = null;
+let routePath = null;   // real road route, [[lat,lon], ...]
+const trafficColor = {Light:'#4ade80', Moderate:'#ffb03d', Heavy:'#ff6259'};
+
+{% if r.matched_name %}
+const destLatLng = [{{ r.m_lat }}, {{ r.m_lon }}];
+routePath = {{ (route_coords if route_coords else [[r.m_lat, r.m_lon],[r.r_lat, r.r_lon]]) | tojson }};
+const routeColor = trafficColor["{{ live_traffic_level or 'Moderate' }}"] || '#4fa2ff';
+
+const destIcon = L.divIcon({className:'', html:'<div style="width:16px;height:16px;border-radius:50%;background:#4fa2ff;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)"></div>'});
+L.marker(destLatLng, {icon: destIcon}).addTo(map).bindPopup("{{ r.matched_name }} (fulfilling)");
+L.polyline(routePath, {color: routeColor, weight:8, opacity:.15}).addTo(map); // glow
+L.polyline(routePath, {color: routeColor, weight:4, opacity:0.9, dashArray:'1,10', lineCap:'round'}).addTo(map);
+// NOTE: fitBounds is deliberately NOT called here. At this point in a fresh
+// page load the .map-container may not have its final laid-out size yet
+// (fonts/CSS still settling), so fitBounds can compute against a 0-size or
+// stale container and leave the map permanently mis-zoomed/panned — the
+// "map on the request page does not load" bug. We fit bounds later, after
+// invalidateSize() has run against the real, final container size.
+
+const vehicleIcon = L.divIcon({className:'', html:`<div style="width:26px;height:26px;border-radius:50%;background:#0a0e18;display:flex;align-items:center;justify-content:center;color:${routeColor};font-size:12px;box-shadow:0 3px 12px rgba(0,0,0,.5);border:2px solid ${routeColor};animation:vehiclePulse 1.6s ease-in-out infinite;">🚑</div>`});
+vehicleMarker = L.marker(destLatLng, {icon: vehicleIcon}).addTo(map);
+
+// walk the real multi-point road route and place the marker at `frac` of its length
+function pointAlongPath(points, frac){
+  if(points.length < 2) return points[0] || destLatLng;
+  const segLens = [];
+  let total = 0;
+  for(let i=0;i<points.length-1;i++){
+    const d = L.latLng(points[i]).distanceTo(L.latLng(points[i+1]));
+    segLens.push(d); total += d;
+  }
+  let target = total * Math.min(1, Math.max(0, frac));
+  for(let i=0;i<segLens.length;i++){
+    if(target <= segLens[i] || i===segLens.length-1){
+      const segFrac = segLens[i] ? target/segLens[i] : 0;
+      const a = points[i], b = points[i+1];
+      return [a[0] + (b[0]-a[0])*segFrac, a[1] + (b[1]-a[1])*segFrac];
+    }
+    target -= segLens[i];
+  }
+  return points[points.length-1];
+}
+
+function updateVehiclePosition(){
+  if(currentStatus !== 'in_transit' || !transitAt || !etaMin){
+    vehicleMarker.setLatLng(destLatLng);
+    return;
+  }
+  const elapsedMin = ((Date.now() - new Date(transitAt+'Z').getTime()) / 60000) * speedMult;
+  const frac = Math.min(1, Math.max(0, elapsedMin / etaMin));
+  // route runs origin(fulfilling) -> requester in stored order, vehicle travels dest->origin visually,
+  // so we reverse the walked fraction to go from fulfilling hospital to requesting hospital
+  vehicleMarker.setLatLng(pointAlongPath(routePath.slice().reverse(), frac));
+}
+{% else %}
+function updateVehiclePosition(){}
+{% endif %}
+
+// Leaflet needs a real, laid-out container size at init time, and again any
+// time that container's size changes later (e.g. flex/grid reflow, fonts
+// loading, tab becoming visible). A ResizeObserver is the robust fix for the
+// "map renders blank until you resize the window" class of bug.
+const mapEl = document.getElementById('map');
+let boundsFitted = false;
+function fitRouteBounds(){
+  if(boundsFitted || !routePath) return;
+  boundsFitted = true;
+  map.fitBounds(routePath, {padding:[50,50]});
+}
+new ResizeObserver(()=>{ map.invalidateSize(); fitRouteBounds(); }).observe(mapEl);
+requestAnimationFrame(()=>requestAnimationFrame(()=>{ map.invalidateSize(); fitRouteBounds(); }));
+setTimeout(()=>{ map.invalidateSize(); fitRouteBounds(); }, 400);
+
+function updateEtaCountdown(){
+  const heroEl = document.getElementById('etaHero');
+  const cd = document.getElementById('etaCountdown');
+  if(currentStatus === 'in_transit' && transitAt && etaMin){
+    const elapsedMin = ((Date.now() - new Date(transitAt+'Z').getTime()) / 60000) * speedMult;
+    const remain = Math.max(0, etaMin - elapsedMin);
+    const mm = Math.floor(remain);
+    const ss = Math.floor((remain-mm)*60);
+    cd.textContent = mm+"m "+ss+"s";
+  } else if(currentStatus === 'dispatched'){
+    cd.textContent = "Preparing to depart";
+  } else {
+    cd.textContent = "—";
+  }
+}
+
+setInterval(()=>{ updateEtaCountdown(); updateVehiclePosition(); }, 250);
+updateEtaCountdown(); updateVehiclePosition();
+
+// ---- live poll for status changes (Uber-style) ----
+async function pollStatus(){
+  try{
+    const res = await fetch(`/api/request/${reqId}?st=` + encodeURIComponent(window.LR_TOKEN));
+    if(!res.ok) return;
+    const data = await res.json();
+    if(data.status !== currentStatus){
+      location.reload(); // refresh action buttons + timeline server-side for correctness
+    }
+  }catch(e){}
+}
+setInterval(pollStatus, 3000);
+</script>
+{% endblock %}
