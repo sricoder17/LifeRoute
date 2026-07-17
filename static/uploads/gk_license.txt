@@ -1,0 +1,8 @@
+LifeRoute Demo Registration Document
+--------------------------------------
+Hospital: Greater Kailash Care Hospital
+License number: DL-HOSP-2021-00734
+Submitted: 29 Jan 2024
+Status: Verified by LifeRoute Admin
+
+This is a placeholder document for demo account 'gk'.

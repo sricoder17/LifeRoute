@@ -1,0 +1,8 @@
+LifeRoute Demo Registration Document
+--------------------------------------
+Hospital: Rohini Sector-9 Medical Center
+License number: DL-HOSP-2023-01590
+Submitted: 19 Mar 2026
+Status: Verified by LifeRoute Admin
+
+This is a placeholder document for demo account 'rohini'.

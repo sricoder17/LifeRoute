@@ -1,0 +1,8 @@
+LifeRoute Demo Registration Document
+--------------------------------------
+Hospital: North Ridge Trauma Center
+License number: DL-HOSP-2022-00893
+Submitted: 17 Jul 2024
+Status: Verified by LifeRoute Admin
+
+This is a placeholder document for demo account 'northridge'.

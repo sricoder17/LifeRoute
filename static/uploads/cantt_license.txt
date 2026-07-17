@@ -1,0 +1,8 @@
+LifeRoute Demo Registration Document
+--------------------------------------
+Hospital: Delhi Cantt Base Hospital
+License number: DL-HOSP-2020-00256
+Submitted: 01 Sep 2023
+Status: Verified by LifeRoute Admin
+
+This is a placeholder document for demo account 'cantt'.

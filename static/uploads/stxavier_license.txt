@@ -1,0 +1,8 @@
+LifeRoute Demo Registration Document
+--------------------------------------
+Hospital: St. Xavier General Hospital
+License number: DL-HOSP-2021-01147
+Submitted: 12 Jun 2025
+Status: Verified by LifeRoute Admin
+
+This is a placeholder document for demo account 'stxavier'.
